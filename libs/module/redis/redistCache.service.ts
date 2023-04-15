@@ -6,6 +6,11 @@ import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 
 @Injectable()
 export class CacheDecoratorRegister implements OnModuleInit {
+  // static test = new Redis()
+  private name = 'CacheDecoratorRegister';
+  private methodNameSetKey = 'setTest';
+  private methodNameGetKey = 'getTest';
+
   constructor(
     private readonly discoveryService: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
@@ -14,97 +19,69 @@ export class CacheDecoratorRegister implements OnModuleInit {
     private readonly redisClient: Redis,
   ) {}
 
-  // onModuleInit() {
-  //   console.log('onModuleInit');
-  //   this.redisClient.set('11', 2);
-  //   const ins = this.discoveryService
-  //     .getProviders() // #1. 모든 provider 조회
-  //     .filter((wrapper) => wrapper.isDependencyTreeStatic())
-  //     .filter(({ instance }) => instance && Object.getPrototypeOf(instance))
-  //     .forEach(
-  //       ({ instance }) => {
-  //         this.metadataScanner.scanFromPrototype(
-  //           instance,
-  //           Object.getPrototypeOf(instance),
-  //           (methodName) => {
-  //             // #2. 메타데이터 value
-  //             if (instance.name == 'AppService') console.log(methodName);
-  //             const ttl = this.reflector.get(CACHEABLE, instance[methodName]);
-
-  //             if (!ttl) {
-  //               return;
-  //             } else {
-  //               console.log('ttl 있다. ');
-  //             }
-
-  //             const methodRef = instance[methodName];
-  //             console.log('--------------------------------');
-  //             console.log(`${instance}${methodName}`);
-  //             console.log('--------------------------------');
-  //             // #3. 기존 함수 데코레이팅
-  //             instance[methodName] = async function (...args: any[]) {
-  //               const name = `${instance.constructor.name}.${methodName}`;
-  //               console.log(`this=${JSON.stringify(this)}`);
-  //               console.log(`this=${JSON.stringify(this.redisClient)}`);
-  //               const value = await this.redisClient.get(name, args);
-  //               if (value) {
-  //                 return value;
-  //               }
-
-  //               const result = await methodRef.call(instance, ...args);
-  //               await this.redisClient.set(name, args, result, ttl);
-  //               return result;
-  //             };
-  //           },
-  //         );
-  //       },
-  //       { aa: this, bb: '1' },
-  //     );
-  //   return ins;
-  // }
   onModuleInit() {
-    console.log('onModuleInit');
+    let setKeyFun, getKeyFun, setKyeFunIns;
 
-    const ins = this.discoveryService
+    this.discoveryService
+      .getProviders()
+      .filter(({ instance }) => instance && Object.getPrototypeOf(instance))
+      .forEach(({ instance }) => {
+        const obj = Object.getPrototypeOf(instance);
+        if (obj.constructor.name === this.name) {
+          setKyeFunIns = instance;
+          setKeyFun = instance[this.methodNameSetKey];
+          getKeyFun = instance[this.methodNameGetKey];
+        }
+      });
+
+    return this.discoveryService
       .getProviders()
       .filter((wrapper) => wrapper.isDependencyTreeStatic())
-      .filter(({ instance }) => instance && Object.getPrototypeOf(instance));
+      .filter(({ instance }) => instance && Object.getPrototypeOf(instance))
+      .forEach(({ instance }) => {
+        this.metadataScanner.scanFromPrototype(
+          instance,
+          Object.getPrototypeOf(instance),
+          (methodName) => {
+            const reflectorVal = this.reflector.get(
+              CACHEABLE,
+              instance[methodName],
+            );
 
-    ins.forEach(({ instance }) => {
-      this.metadataScanner.scanFromPrototype(
-        instance,
-        Object.getPrototypeOf(instance),
-        (methodName) => {
-          if (instance.name == 'AppService') console.log(methodName);
-          const ttl = this.reflector.get(CACHEABLE, instance[methodName]);
-
-          if (!ttl) {
-            return;
-          } else {
-            console.log('ttl 있다. ');
-          }
-
-          const methodRef = instance[methodName];
-          console.log('--------------------------------');
-          console.log(`${instance}${methodName}`);
-          console.log('--------------------------------');
-
-          instance[methodName] = async function (...args: any[]) {
-            const name = `${instance.constructor.name}.${methodName}`;
-            console.log(`this=${JSON.stringify(this)}`);
-            console.log(`this=${JSON.stringify(this.redisClient)}`);
-            const value = await this.redisClient.get(name, args);
-            if (value) {
-              return value;
+            if (!reflectorVal) {
+              return;
             }
+            // console.log(`ttl : ${JSON.stringify(reflectorVal)}`);
 
-            const result = await methodRef.call(instance, ...args);
-            await this.redisClient.set(name, args, result, ttl);
-            return result;
-          };
-        },
-      );
-    }, this);
-    return ins;
+            const methodRef = instance[methodName];
+
+            instance[methodName] = async function (...args: any[]) {
+              const key = `${instance.constructor.name}.${methodName}`;
+
+              const cacheVal = await getKeyFun.call(setKyeFunIns, key);
+
+              if (cacheVal) {
+                // console.log('Cache Hit!');
+                return cacheVal;
+              }
+              const result = await methodRef.call(instance, ...args);
+              await setKeyFun.call(setKyeFunIns, key, result, reflectorVal.ttl);
+
+              return result;
+            };
+          },
+        );
+      });
+  }
+
+  async setTest(key, result, ttl) {
+    await this.redisClient.set(key, result, 'EX', ttl);
+    console.log(`success`);
+  }
+  async getTest(key) {
+    console.log(`getTest : ${key}`);
+    const res = await this.redisClient.get(key);
+    console.log(`getTest: ${res}`);
+    return res;
   }
 }

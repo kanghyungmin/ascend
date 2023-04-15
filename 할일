@@ -1,0 +1,25 @@
+# [완료]// 0. 프로젝트 구조 생성
+# [완료]// 1. 환경 변수 등록 공통 모듈 굿성
+# [완료]// 2. gRPC,/CI&CD
+# [완료]// 3. Binance 데이터 가져오기 & 데이터 전략 구현
+# [진행]// 4. Socket 연결 및 데이터 전략 구현
+# [DB 연결] //5
+# // 4. DB ORM 만들기 그리고 트레이드 저장
+# // 5. readme 작성
+# https://developers.binance.com/docs/binance-trading-api/websocket_api#test-new-order-trade
+# // 6) Grafana 연결 4/8
+# // 7) readme 작성
+
+# // 3. 바이낸스 webSocket 가져오기 - 4/8
+    # 1) socket 연결
+    # 2) data 전처리
+    # 3) 전략 구현 후, 데이터 확인
+
+
+# 추가 반영되었으면 하는 사항. 
+# 1. Cluster 별도 구성
+# 2. GRPC
+# 3. 전략 구현 후, trading 시 거래 프로세스 고도화. 
+
+# dto 추출하기
+# config 주입

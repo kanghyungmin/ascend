@@ -8,10 +8,17 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Trade, TradeSchema } from 'libs/model/trade.entity';
 import { RedisCacheModule } from 'libs/module/redis/redisCache.module';
 import { DiscoveryModule, DiscoveryService } from '@nestjs/core';
-import { CacheDecoratorRegister1 } from './test.service';
+
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
+    RedisModule.forRoot({
+      config: {
+        // url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
+        url: `redis://localhost:6379`,
+      },
+    }),
     RedisCacheModule.register(),
     ConfigModule.register({ envPath: 'envs/trade/.env' }),
     DBconnectionMoudle,
@@ -27,6 +34,6 @@ import { CacheDecoratorRegister1 } from './test.service';
     DiscoveryModule,
   ],
   controllers: [AppController],
-  providers: [AppService, CacheDecoratorRegister1],
+  providers: [AppService],
 })
 export class AppModule {}
