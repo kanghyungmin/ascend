@@ -11,4 +11,9 @@ export class AppService {
     // this.redisClient.set()
     return 'Hello Trade APP!';
   }
+  @Cacheable(60)
+  public getHello1({ name: string, test: number }, param: string): string {
+    // this.redisClient.set()
+    return 'Hello Trade APP!';
+  }
 }

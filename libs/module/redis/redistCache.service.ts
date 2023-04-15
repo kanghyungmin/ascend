@@ -56,21 +56,34 @@ export class RedistCacheService implements OnModuleInit {
             if (!reflectorVal) {
               return;
             }
-            // console.log(`ttl : ${JSON.stringify(reflectorVal)}`);
 
             const methodRef = instance[methodName];
+            const getKeyFN = (...args: any[]) => {
+              let key = '';
+              for (let i = 0; i < args[0].length; i++) {
+                if (typeof args[0][i] === 'object') {
+                  key += JSON.stringify(args[0][i]);
+                } else {
+                  key += args[0][i].toString();
+                }
+              }
+              return `${instance.constructor.name}.${methodName}_${key}`;
+            };
 
             instance[methodName] = async function (...args: any[]) {
-              const key = `${instance.constructor.name}.${methodName}`;
-
-              const cacheVal = await getKeyFun.call(setKyeFunIns, key);
+              const redisKey = getKeyFN(args);
+              const cacheVal = await getKeyFun.call(setKyeFunIns, redisKey);
 
               if (cacheVal) {
-                // console.log('Cache Hit!');
                 return cacheVal;
               }
               const result = await methodRef.call(instance, ...args);
-              await setKeyFun.call(setKyeFunIns, key, result, reflectorVal.ttl);
+              await setKeyFun.call(
+                setKyeFunIns,
+                redisKey,
+                result,
+                reflectorVal.ttl,
+              );
 
               return result;
             };
