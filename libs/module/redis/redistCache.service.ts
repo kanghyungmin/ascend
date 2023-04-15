@@ -7,7 +7,7 @@ import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 @Injectable()
 export class RedistCacheService implements OnModuleInit {
   // static test = new Redis()
-  private name = 'CacheDecoratorRegister';
+  private name = 'RedistCacheService';
   private methodNameSetKey = 'setTest';
   private methodNameGetKey = 'getTest';
 
@@ -33,6 +33,11 @@ export class RedistCacheService implements OnModuleInit {
           getKeyFun = instance[this.methodNameGetKey];
         }
       });
+
+    // console.log(this.redisClient);
+    // console.log(`setKeyFun: ${setKeyFun}`);
+    // console.log(`getKeyFun: ${getKeyFun}`);
+    // console.log(`setKyeFunIns: ${setKyeFunIns}`);
 
     return this.discoveryService
       .getProviders()
