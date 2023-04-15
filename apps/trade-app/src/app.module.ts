@@ -13,14 +13,8 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
-    RedisModule.forRoot({
-      config: {
-        // url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
-        url: `redis://localhost:6379`,
-      },
-    }),
-    RedisCacheModule.register(),
     ConfigModule.register({ envPath: 'envs/trade/.env' }),
+    RedisCacheModule.register(),
     DBconnectionMoudle,
     MongooseModule.forRootAsync({
       connectionName: process.env.REPL_MONGO_DB,

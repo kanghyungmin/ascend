@@ -5,7 +5,7 @@ import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 
 @Injectable()
-export class CacheDecoratorRegister implements OnModuleInit {
+export class RedistCacheService implements OnModuleInit {
   // static test = new Redis()
   private name = 'CacheDecoratorRegister';
   private methodNameSetKey = 'setTest';

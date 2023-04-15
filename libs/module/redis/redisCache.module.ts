@@ -1,15 +1,20 @@
 import { DynamicModule, Global, Module } from '@nestjs/common';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { DiscoveryModule } from '@nestjs/core';
-import { CacheDecoratorRegister } from './redistCache.service';
+import { RedistCacheService } from './redistCache.service';
+import { ConfigModule } from '../config/config.module';
+import { ConfigService } from '../config/config.service';
 
 @Module({
   imports: [
-    RedisModule.forRoot({
-      config: {
-        // url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
-        url: `redis://localhost:6379`,
-      },
+    RedisModule.forRootAsync({
+      useFactory: () => ({
+        config: {
+          url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
+        },
+      }),
+      inject: [ConfigService],
+      imports: [ConfigModule.register({ envPath: 'envs/trade/.env' })],
     }),
     DiscoveryModule,
   ],
@@ -19,7 +24,7 @@ export class RedisCacheModule {
   static register(options?: Record<string, any>): DynamicModule {
     return {
       module: RedisCacheModule,
-      providers: [CacheDecoratorRegister],
+      providers: [RedistCacheService],
       exports: [
         // RedisCacheService
       ],
