@@ -10,6 +10,7 @@ export class RedistCacheService implements OnModuleInit {
   private name = 'RedistCacheService';
   private methodNameSetKey = 'setTest';
   private methodNameGetKey = 'getTest';
+  private distributedKeySZ = 3;
 
   constructor(
     private readonly discoveryService: DiscoveryService,
@@ -33,11 +34,6 @@ export class RedistCacheService implements OnModuleInit {
           getKeyFun = instance[this.methodNameGetKey];
         }
       });
-
-    // console.log(this.redisClient);
-    // console.log(`setKeyFun: ${setKeyFun}`);
-    // console.log(`getKeyFun: ${getKeyFun}`);
-    // console.log(`setKyeFunIns: ${setKyeFunIns}`);
 
     return this.discoveryService
       .getProviders()
@@ -72,20 +68,19 @@ export class RedistCacheService implements OnModuleInit {
 
             instance[methodName] = async function (...args: any[]) {
               const redisKey = getKeyFN(args);
-              const cacheVal = await getKeyFun.call(setKyeFunIns, redisKey);
 
-              if (cacheVal) {
-                return cacheVal;
-              }
-              const result = await methodRef.call(instance, ...args);
-              await setKeyFun.call(
+              //Debounce / Per / Distributed Keys 적용
+              const cacheVal = await getKeyFun.call(
                 setKyeFunIns,
+                methodRef,
+                setKyeFunIns,
+                setKeyFun,
                 redisKey,
-                result,
-                reflectorVal.ttl,
+                reflectorVal,
+                args,
               );
 
-              return result;
+              return cacheVal;
             };
           },
         );
@@ -94,12 +89,36 @@ export class RedistCacheService implements OnModuleInit {
 
   async setTest(key, result, ttl) {
     await this.redisClient.set(key, result, 'EX', ttl);
-    console.log(`success`);
+    console.log(`success${key}, ${ttl}`);
   }
-  async getTest(key) {
-    console.log(`getTest : ${key}`);
-    const res = await this.redisClient.get(key);
-    console.log(`getTest: ${res}`);
+
+  async getTest(
+    decoratedFun,
+    instance,
+    setFun,
+    redisKey,
+    reflectorInfo,
+    args: any[],
+  ) {
+    // const redisKeys: string[] = [
+    //   `${redisKeyPrefix}-0`,
+    //   `${redisKeyPrefix}-1`,
+    //   `${redisKeyPrefix}-2`,
+    // ];
+    let res = await this.redisClient.get(redisKey);
+    if (res == null) {
+      console.log(`getTest: ${res}`);
+      res = await decoratedFun.call(instance, ...args);
+      console.log(`result=${res}`);
+      await setFun.call(instance, redisKey, res, reflectorInfo.ttl);
+    } else {
+      console.log('cache hitt');
+    }
     return res;
+  }
+
+  //debounce / per / withMultiKeys 적용
+  getRandomInt() {
+    return Math.floor(Math.random() * this.distributedKeySZ);
   }
 }
