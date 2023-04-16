@@ -9,8 +9,12 @@ export class RedistCacheService implements OnModuleInit {
   // static test = new Redis()
   private name = 'RedistCacheService';
   private methodNameSetKey = 'setTest';
-  private methodNameGetKey = 'getTest';
+  private methodNameGetKey = 'getKeysWithBounce';
   private distributedKeySZ = 3;
+  private perCheckTime = 2000; //ms 단위
+  private deBounceIterations = 3;
+  private deBounceIntervalTime = 500; //ms 단위
+  private mutexArr: Map<string, boolean> = new Map();
 
   constructor(
     private readonly discoveryService: DiscoveryService,
@@ -72,12 +76,11 @@ export class RedistCacheService implements OnModuleInit {
               //Debounce / Per / Distributed Keys 적용
               const cacheVal = await getKeyFun.call(
                 setKyeFunIns,
-                methodRef,
+                { method: methodRef, instance, args },
                 setKyeFunIns,
                 setKeyFun,
                 redisKey,
                 reflectorVal,
-                args,
               );
 
               return cacheVal;
@@ -92,33 +95,163 @@ export class RedistCacheService implements OnModuleInit {
     console.log(`success${key}, ${ttl}`);
   }
 
-  async getTest(
-    decoratedFun,
+  getTTLs(ttl: number) {
+    let retArr: number[] | null = null;
+    for (let i = 0; i < this.distributedKeySZ; i++) {
+      retArr.push(ttl * (i + 1));
+    }
+    return retArr;
+  }
+  async getKeysWithBounce(
+    decoratedinfo,
     instance,
     setFun,
-    redisKey,
+    keyPrefix,
     reflectorInfo,
-    args: any[],
   ) {
-    // const redisKeys: string[] = [
-    //   `${redisKeyPrefix}-0`,
-    //   `${redisKeyPrefix}-1`,
-    //   `${redisKeyPrefix}-2`,
-    // ];
-    let res = await this.redisClient.get(redisKey);
-    if (res == null) {
-      console.log(`getTest: ${res}`);
-      res = await decoratedFun.call(instance, ...args);
-      console.log(`result=${res}`);
-      await setFun.call(instance, redisKey, res, reflectorInfo.ttl);
-    } else {
-      console.log('cache hitt');
+    const redisKeys: string[] = this.getKeysWithPrefix(keyPrefix);
+    const ttls: number[] = this.getTTLs(reflectorInfo.ttl);
+
+    let [cacheValue, idx] = this.getValueWithRV(redisKeys);
+
+    if (cacheValue && idx == 0) {
+      //0번째인 경우 PER 돌림.
+      // return cacheValue;
+      await this.applyPERlogic(keyPrefix, redisKeys, ttls, decoratedinfo);
+    } else if (!cacheValue && idx < this.distributedKeySZ - 1) {
+      //check distributed keys & update keys
+
+      const lastValue = await this.redisClient.get(
+        redisKeys[this.distributedKeySZ - 1],
+      );
+      if (lastValue) {
+        cacheValue = lastValue;
+      } else {
+        cacheValue = await this.setKeysWithBounce(
+          keyPrefix,
+          redisKeys,
+          ttls,
+          decoratedinfo,
+        );
+      }
+    } else if (!cacheValue && idx == this.distributedKeySZ - 1) {
+      cacheValue = await this.setKeysWithBounce(
+        keyPrefix,
+        redisKeys,
+        ttls,
+        decoratedinfo,
+      );
     }
-    return res;
+    if (typeof cacheValue === 'string') {
+      cacheValue = JSON.parse(cacheValue);
+    }
+
+    return cacheValue;
+    // let res = await this.redisClient.get(keyPrefix);
+    // if (res == null) {
+    //   console.log(`getTest: ${res}`);
+    //   res = await decoratedFun.call(instance, ...args);
+    //   console.log(`result=${res}`);
+    //   await setFun.call(instance, redisKey, res, reflectorInfo.ttl);
+    // } else {
+    //   console.log('cache hitt');
+    // }
+    // return res;
   }
 
   //debounce / per / withMultiKeys 적용
+  async applyPERlogic(
+    keyPrefix: string,
+    redisKeys: string[],
+    setTTLs: number[],
+    decoratedInfo: { method: any; instance: any; args: any[] },
+  ) {
+    const renew = async () => {
+      const leftedTTlms = await this.redisClient.pttl(redisKeys[0]);
+      const rv = this.getRVfromUniDis(0, 1);
+
+      if (leftedTTlms - rv * this.perCheckTime >= 0) return false;
+      else return true;
+    };
+
+    const isNew = await renew();
+
+    if (isNew) {
+      //업데이트
+      await this.setKeysWithBounce(
+        keyPrefix,
+        redisKeys,
+        setTTLs,
+        decoratedInfo,
+      );
+    }
+  }
+
+  async setKeysWithBounce(
+    keyPrefix: string,
+    redisKeys: string[],
+    setTTLs: number[],
+    decoratedInfo: { method: any; instance: any; args: any[] },
+  ) {
+    let result = null;
+    const mapValue = this.mutexArr.get(keyPrefix);
+    if (!mapValue) {
+      this.mutexArr.set(keyPrefix, true);
+      result = await decoratedInfo.method.call(
+        decoratedInfo.instance,
+        ...decoratedInfo.args,
+      );
+
+      for (let i = 0; i < redisKeys.length; i++) {
+        await this.redisClient.set(
+          redisKeys[i],
+          JSON.stringify(result),
+          'EX',
+          setTTLs[i],
+        );
+      }
+      this.mutexArr.set(keyPrefix, false);
+    }
+
+    //debounce logic
+    if (!result) {
+      result = await this.waitUntilValueReturn(
+        redisKeys,
+        this.deBounceIterations,
+      );
+    }
+    return result;
+  }
+  async waitUntilValueReturn(redisKeys: string[], ntime: number) {
+    return new Promise((resolve, reject) => {
+      const checkFn = setInterval(async () => {
+        const cacheValue = await this.redisClient.get(redisKeys[0]);
+        ntime -= 1;
+        if (cacheValue || ntime === 0) {
+          // console.log(`${idx}  cacheValue : ${cacheValue.length}`);
+          clearInterval(checkFn);
+          // console.log(`${idx} cachehit 성공`);
+
+          resolve(cacheValue);
+        }
+      }, this.deBounceIntervalTime);
+    });
+  }
+  getValueWithRV(redisKeys: string[]): [string, number] {
+    const idx = this.getRandomInt();
+    return [redisKeys[idx], idx];
+  }
   getRandomInt() {
     return Math.floor(Math.random() * this.distributedKeySZ);
+  }
+  getKeysWithPrefix(prefix: string) {
+    let retArr: string[] | null = null;
+    for (let i = 0; i < this.distributedKeySZ; i++) {
+      retArr.push(`${prefix}-${i}`);
+    }
+    return retArr;
+  }
+  getRVfromUniDis(min, max) {
+    return Math.random() * (max - min) + min;
   }
 }
