@@ -142,8 +142,12 @@ export class RedistCacheService implements OnModuleInit {
         decoratedinfo,
       );
     }
-    if (typeof cacheValue === 'string') {
-      cacheValue = JSON.parse(cacheValue);
+    try {
+      if (typeof cacheValue === 'string') {
+        cacheValue = JSON.parse(cacheValue);
+      }
+    } catch {
+      console.log('JSON Parse error');
     }
 
     return cacheValue;
