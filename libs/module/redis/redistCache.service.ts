@@ -96,7 +96,7 @@ export class RedistCacheService implements OnModuleInit {
   }
 
   getTTLs(ttl: number) {
-    let retArr: number[] | null = null;
+    let retArr: number[] = [];
     for (let i = 0; i < this.distributedKeySZ; i++) {
       retArr.push(ttl * (i + 1));
     }
@@ -112,7 +112,7 @@ export class RedistCacheService implements OnModuleInit {
     const redisKeys: string[] = this.getKeysWithPrefix(keyPrefix);
     const ttls: number[] = this.getTTLs(reflectorInfo.ttl);
 
-    let [cacheValue, idx] = this.getValueWithRV(redisKeys);
+    let [cacheValue, idx] = await this.getValueWithRV(redisKeys);
 
     if (cacheValue && idx == 0) {
       //0번째인 경우 PER 돌림.
@@ -147,16 +147,6 @@ export class RedistCacheService implements OnModuleInit {
     }
 
     return cacheValue;
-    // let res = await this.redisClient.get(keyPrefix);
-    // if (res == null) {
-    //   console.log(`getTest: ${res}`);
-    //   res = await decoratedFun.call(instance, ...args);
-    //   console.log(`result=${res}`);
-    //   await setFun.call(instance, redisKey, res, reflectorInfo.ttl);
-    // } else {
-    //   console.log('cache hitt');
-    // }
-    // return res;
   }
 
   //debounce / per / withMultiKeys 적용
@@ -237,15 +227,15 @@ export class RedistCacheService implements OnModuleInit {
       }, this.deBounceIntervalTime);
     });
   }
-  getValueWithRV(redisKeys: string[]): [string, number] {
+  async getValueWithRV(redisKeys: string[]): Promise<[string, number]> {
     const idx = this.getRandomInt();
-    return [redisKeys[idx], idx];
+    return [await this.redisClient.get(redisKeys[idx]), idx];
   }
   getRandomInt() {
     return Math.floor(Math.random() * this.distributedKeySZ);
   }
   getKeysWithPrefix(prefix: string) {
-    let retArr: string[] | null = null;
+    let retArr: string[] = [];
     for (let i = 0; i < this.distributedKeySZ; i++) {
       retArr.push(`${prefix}-${i}`);
     }
