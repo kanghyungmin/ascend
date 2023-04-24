@@ -14,7 +14,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 @Module({
   imports: [
     ConfigModule.register({ envPath: 'envs/trade/.env' }),
-    RedisCacheModule.register(),
+    // RedisCacheModule.register(),
     DBconnectionMoudle,
     MongooseModule.forRootAsync({
       connectionName: process.env.REPL_MONGO_DB,

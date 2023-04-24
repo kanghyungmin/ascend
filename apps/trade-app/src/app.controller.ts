@@ -33,7 +33,7 @@ export class AppController {
   }
   @Get()
   getHello(): string {
-    return this.appService.getHello('test');
+    return this.appService.getHello();
   }
 
   @GrpcMethod('TradeService', 'FindOne')

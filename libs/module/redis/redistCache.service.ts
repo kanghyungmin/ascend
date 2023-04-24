@@ -59,6 +59,7 @@ export class RedistCacheService implements OnModuleInit {
 
             const methodRef = instance[methodName];
             const getKeyFN = (...args: any[]) => {
+              console.log(args);
               let key = '';
               for (let i = 0; i < args[0].length; i++) {
                 if (typeof args[0][i] === 'object') {
