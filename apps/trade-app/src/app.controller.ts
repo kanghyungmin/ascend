@@ -11,26 +11,25 @@ import { Side } from 'libs/libs.enum';
 @Controller()
 export class AppController {
   constructor(
-    private readonly appService: AppService,
-    @InjectModel(Trade.name)
-    private readonly tradeModel: Model<Trade>,
-  ) {}
+    private readonly appService: AppService, // @InjectModel(Trade.name)
+  ) // private readonly tradeModel: Model<Trade>,
+  {}
 
-  @Post('/trade')
-  async postTrade(@Body() tradeInfo: TradeData & { tradeId: string }): Promise<{
-    status: string;
-  }> {
-    await this.tradeModel.create({
-      tradeId: tradeInfo.tradeId,
-      price: tradeInfo.price,
-      qty: tradeInfo.qty,
-      side: tradeInfo.side == Side.BUY ? 'BUY' : 'SELL',
-    });
+  // @Post('/trade')
+  // async postTrade(@Body() tradeInfo: TradeData & { tradeId: string }): Promise<{
+  //   status: string;
+  // }> {
+  //   await this.tradeModel.create({
+  //     tradeId: tradeInfo.tradeId,
+  //     price: tradeInfo.price,
+  //     qty: tradeInfo.qty,
+  //     side: tradeInfo.side == Side.BUY ? 'BUY' : 'SELL',
+  //   });
 
-    return {
-      status: 'ok',
-    };
-  }
+  //   return {
+  //     status: 'ok',
+  //   };
+  // }
   @Get()
   getHello(): string {
     return this.appService.getHello();
